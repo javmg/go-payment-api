@@ -9,6 +9,7 @@ import (
 	"github.com/satori/go.uuid"
 	"time"
 	"gitgub.com/javierjmgits/go-payment-api/payment/repository"
+	"strings"
 )
 
 type PaymentHandler struct {
@@ -52,63 +53,55 @@ func (ph *PaymentHandler) GetPayments(w http.ResponseWriter, r *http.Request) {
 	payments, errorDB := ph.paymentRepository.GetAll()
 
 	if errorDB != nil {
-		util.WriteError(w, 500, errorDB.Error())
+		util.WriteError(w, http.StatusInternalServerError, errorDB.Error())
 		return
 	}
 
-	util.WritePayload(w, 200, newPaymentViews(payments))
+	util.WritePayload(w, http.StatusOK, newPaymentViews(payments))
 }
 
 func (ph *PaymentHandler) GetPaymentByUid(w http.ResponseWriter, r *http.Request) {
 
-	payment, errorDB := ph.getPaymentByUid(r)
+	payment, responseGenerated := ph.getAndCheckPaymentByUid(w, r, false)
 
-	if errorDB != nil {
-		util.WriteError(w, 404, errorDB.Error())
+	if responseGenerated {
 		return
 	}
 
-	util.WritePayload(w, 200, newPaymentView(payment))
+	util.WritePayload(w, http.StatusOK, newPaymentView(payment))
 
 }
 
 func (ph *PaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 
-	var paymentCreate PaymentCreate
-	errorJson := json.NewDecoder(r.Body).Decode(&paymentCreate)
-	if errorJson != nil {
-		util.WriteError(w, 400, errorJson.Error())
+	paymentCreate, responseGenerated := decodeAndValidatePaymentCreate(w, r)
+
+	if responseGenerated {
 		return
 	}
 
-	payment, errorUuid := newPayment(&paymentCreate)
+	paymentToSave, errorUuid := newPayment(paymentCreate)
 
 	if errorUuid != nil {
-		util.WriteError(w, 500, errorUuid.Error())
+		util.WriteError(w, http.StatusInternalServerError, errorUuid.Error())
 		return
 	}
 
-	payment, errorDB := ph.paymentRepository.Create(payment)
+	paymentSaved, errorDB := ph.paymentRepository.Create(paymentToSave)
 
 	if errorDB != nil {
-		util.WriteError(w, 500, errorDB.Error())
+		util.WriteError(w, http.StatusInternalServerError, errorDB.Error())
 		return
 	}
 
-	util.WritePayload(w, 201, newPaymentView(payment))
+	util.WritePayload(w, http.StatusCreated, newPaymentView(paymentSaved))
 }
 
 func (ph *PaymentHandler) FlagPaymentAsProcessedByUid(w http.ResponseWriter, r *http.Request) {
 
-	payment, errorFind := ph.getPaymentByUid(r)
+	payment, responseGenerated := ph.getAndCheckPaymentByUid(w, r, true)
 
-	if errorFind != nil {
-		util.WriteError(w, 404, errorFind.Error())
-		return
-	}
-
-	if payment.Processed {
-		util.WriteError(w, 406, "Payment already processed")
+	if responseGenerated {
 		return
 	}
 
@@ -120,53 +113,87 @@ func (ph *PaymentHandler) FlagPaymentAsProcessedByUid(w http.ResponseWriter, r *
 	payment, errorDB := ph.paymentRepository.Update(payment)
 
 	if errorDB != nil {
-		util.WriteError(w, 500, errorDB.Error())
+		util.WriteError(w, http.StatusInternalServerError, errorDB.Error())
 		return
 	}
 
-	util.WritePayload(w, 200, newPaymentView(payment))
+	util.WritePayload(w, http.StatusOK, newPaymentView(payment))
 
 }
 
 func (ph *PaymentHandler) DeletePaymentByUid(w http.ResponseWriter, r *http.Request) {
 
-	payment, errorFind := ph.getPaymentByUid(r)
+	payment, responseGenerated := ph.getAndCheckPaymentByUid(w, r, true)
 
-	if errorFind != nil {
-		util.WriteError(w, 404, errorFind.Error())
-		return
-	}
-
-	if payment.Processed {
-		util.WriteError(w, 406, "Payment already processed")
+	if responseGenerated {
 		return
 	}
 
 	errorDB := ph.paymentRepository.Delete(payment)
 
 	if errorDB != nil {
-		util.WriteError(w, 500, errorDB.Error())
+		util.WriteError(w, http.StatusInternalServerError, errorDB.Error())
 		return
 	}
 
-	util.WritePayload(w, 204, map[string]string{})
+	util.WritePayload(w, http.StatusNoContent, map[string]string{})
 }
 
 //
 // private functions
 
-func (ph *PaymentHandler) getPaymentByUid(r *http.Request) (*model.Payment, error) {
+func (ph *PaymentHandler) getAndCheckPaymentByUid(w http.ResponseWriter, r *http.Request, ensureNotProcessed bool) (payment *model.Payment, responseGenerated bool) {
 
 	uid := mux.Vars(r)["uid"]
 
 	payment, errorDB := ph.paymentRepository.GetByUid(uid)
 
 	if errorDB != nil {
-		return nil, errorDB
+
+		if strings.Contains(errorDB.Error(), "not found") {
+			util.WriteError(w, http.StatusNotFound, errorDB.Error())
+
+		} else {
+			util.WriteError(w, http.StatusInternalServerError, errorDB.Error())
+		}
+
+		return nil, true
+
 	}
 
-	return payment, nil
+	if ensureNotProcessed && payment.Processed {
+		util.WriteError(w, http.StatusConflict, "Payment already processed")
+		return nil, true
+	}
 
+	return payment, false
+}
+
+func decodeAndValidatePaymentCreate(w http.ResponseWriter, r *http.Request) (paymentCreate *PaymentCreate, responseGenerated bool) {
+
+	errorJson := json.NewDecoder(r.Body).Decode(&paymentCreate)
+
+	if errorJson != nil {
+		util.WriteError(w, http.StatusBadRequest, errorJson.Error())
+		return nil, true
+	}
+
+	if paymentCreate.AccountOrigin == "" {
+		util.WriteError(w, http.StatusBadRequest, "account origin is mandatory")
+		return nil, true
+	}
+
+	if paymentCreate.AccountTarget == "" {
+		util.WriteError(w, http.StatusBadRequest, "account target is mandatory")
+		return nil, true
+	}
+
+	if paymentCreate.Amount <= 0 {
+		util.WriteError(w, http.StatusBadRequest, "amount must be a positive number")
+		return nil, true
+	}
+
+	return paymentCreate, false
 }
 
 func newPayment(paymentCreate *PaymentCreate) (*model.Payment, error) {
