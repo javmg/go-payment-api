@@ -1,15 +1,15 @@
 package handler
 
 import (
-	"net/http"
-	"gitgub.com/javierjmgits/go-payment-api/payment/model"
-	"gitgub.com/javierjmgits/go-payment-api/base/util"
-	"github.com/gorilla/mux"
 	"encoding/json"
+	"github.com/gorilla/mux"
+	"github.com/javierjmgits/go-payment-api/base/util"
+	"github.com/javierjmgits/go-payment-api/payment/model"
+	"github.com/javierjmgits/go-payment-api/payment/repository"
 	"github.com/satori/go.uuid"
-	"time"
-	"gitgub.com/javierjmgits/go-payment-api/payment/repository"
+	"net/http"
 	"strings"
+	"time"
 )
 
 type PaymentHandler struct {

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"gitgub.com/javierjmgits/go-payment-api/payment/model"
+	"github.com/javierjmgits/go-payment-api/payment/model"
 	"github.com/jinzhu/gorm"
 )
 
@@ -10,14 +10,14 @@ type PaymentRepository interface {
 	GetByUid(uid string) (*model.Payment, error)
 	Create(*model.Payment) (*model.Payment, error)
 	Update(*model.Payment) (*model.Payment, error)
-	Delete(*model.Payment) (error)
+	Delete(*model.Payment) error
 }
 
 type paymentRepositoryImpl struct {
 	db *gorm.DB
 }
 
-func NewPaymentRepositoryImpl(db *gorm.DB) (PaymentRepository) {
+func NewPaymentRepositoryImpl(db *gorm.DB) PaymentRepository {
 	return &paymentRepositoryImpl{
 		db: db,
 	}
@@ -70,7 +70,7 @@ func (pri *paymentRepositoryImpl) Update(payment *model.Payment) (*model.Payment
 	return payment, nil
 }
 
-func (pri *paymentRepositoryImpl) Delete(payment *model.Payment) (error) {
+func (pri *paymentRepositoryImpl) Delete(payment *model.Payment) error {
 
 	errorDB := pri.db.Delete(&payment).Error
 

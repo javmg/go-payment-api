@@ -1,18 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"github.com/gorilla/mux"
+	"github.com/javierjmgits/go-payment-api/payment/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"testing"
-	"io/ioutil"
-	"gitgub.com/javierjmgits/go-payment-api/payment/model"
 	"time"
-	"github.com/gorilla/mux"
-	"encoding/json"
-	"github.com/stretchr/testify/mock"
-	"errors"
-	"net/http"
-	"github.com/stretchr/testify/assert"
-	"bytes"
 )
 
 //
@@ -79,7 +79,7 @@ func (mock *paymentRepositoryImplMock) Update(payment *model.Payment) (*model.Pa
 
 }
 
-func (mock *paymentRepositoryImplMock) Delete(payment *model.Payment) (error) {
+func (mock *paymentRepositoryImplMock) Delete(payment *model.Payment) error {
 
 	mock.Mock.Called(payment)
 
@@ -91,7 +91,7 @@ func (mock *paymentRepositoryImplMock) Delete(payment *model.Payment) (error) {
 
 func TestGetPaymentsKoError(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	mockRepository.On("GetAll", nil).Return(nil, errors.New("DB error"))
 
 	req := httptest.NewRequest("GET", "http://localhost:8080/api/v1/payments", nil)
@@ -107,7 +107,7 @@ func TestGetPaymentsKoError(t *testing.T) {
 
 func TestGetPayments(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment1 := expectedPayment("myUid", false)
 	mockRepository.On("GetAll", nil).Return([]model.Payment{*expectedPayment1}, nil)
 
@@ -134,7 +134,7 @@ func TestGetPayments(t *testing.T) {
 
 func TestGetPaymentByUidKoNotFound(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	mockRepository.On("GetByUid", "unknown").Return(nil, errors.New("record not found"))
 
 	req := httptest.NewRequest("GET", "http://localhost:8080/api/v1/payments/uid/unknown", nil)
@@ -150,7 +150,7 @@ func TestGetPaymentByUidKoNotFound(t *testing.T) {
 
 func TestGetPaymentByUidKoError(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	mockRepository.On("GetByUid", "myUid").Return(nil, errors.New("DB error"))
 
 	req := httptest.NewRequest("GET", "http://localhost:8080/api/v1/payments/uid/myUid", nil)
@@ -166,7 +166,7 @@ func TestGetPaymentByUidKoError(t *testing.T) {
 
 func TestGetPaymentByUid(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment := expectedPayment("myUid", false)
 	mockRepository.On("GetByUid", "myUid").Return(expectedPayment, nil)
 
@@ -199,7 +199,7 @@ func TestGetPaymentByUid(t *testing.T) {
 
 func TestCreatePaymentKoMissingMandatoryFields(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	var paymentCreate PaymentCreate
 	paymentCreateAsBytes, _ := json.Marshal(paymentCreate)
 
@@ -216,7 +216,7 @@ func TestCreatePaymentKoMissingMandatoryFields(t *testing.T) {
 
 func TestCreatePayment(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment := expectedPayment("myUid", false)
 	paymentCreate := PaymentCreate{
 		AccountOrigin: expectedPayment.AccountOrigin,
@@ -270,17 +270,17 @@ func TestCreatePayment(t *testing.T) {
 	// verify
 
 	assert.NotEmpty(t, payment.Uid)
-	assert.Equal(t, paymentCreate.AccountOrigin, payment.AccountOrigin, )
-	assert.Equal(t, paymentCreate.AccountTarget, payment.AccountTarget, )
-	assert.Equal(t, paymentCreate.Amount, payment.Amount, )
-	assert.Equal(t, paymentCreate.Date, payment.Date, )
+	assert.Equal(t, paymentCreate.AccountOrigin, payment.AccountOrigin)
+	assert.Equal(t, paymentCreate.AccountTarget, payment.AccountTarget)
+	assert.Equal(t, paymentCreate.Amount, payment.Amount)
+	assert.Equal(t, paymentCreate.Date, payment.Date)
 	assert.False(t, payment.Processed)
 	assert.Empty(t, payment.ProcessedDate)
 }
 
 func TestFlagPaymentAsProcessedByUidKoNotFound(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	mockRepository.On("GetByUid", "unknown").Return(nil, errors.New("not found"))
 
 	req := httptest.NewRequest("PATCH", "http://localhost:8080/api/v1/payments/uid/unknown/processed", nil)
@@ -296,7 +296,7 @@ func TestFlagPaymentAsProcessedByUidKoNotFound(t *testing.T) {
 
 func TestFlagPaymentAsProcessedByUidKoAlreadyProcessed(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment := expectedPayment("myUid", true)
 
 	mockRepository.On("GetByUid", "myUid").Return(expectedPayment, nil)
@@ -314,7 +314,7 @@ func TestFlagPaymentAsProcessedByUidKoAlreadyProcessed(t *testing.T) {
 
 func TestFlagPaymentAsProcessedByUid(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 
 	expectedPayment := expectedPayment("myUid", false)
 
@@ -351,13 +351,13 @@ func TestFlagPaymentAsProcessedByUid(t *testing.T) {
 
 	// verify
 
-	assert.True(t, payment.Processed, )
+	assert.True(t, payment.Processed)
 	assert.Equal(t, expectedPayment.ProcessedDate, payment.ProcessedDate)
 }
 
 func TestDeletePaymentByUidKoNotFound(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	mockRepository.On("GetByUid", "unknown").Return(nil, errors.New("not found"))
 
 	req := httptest.NewRequest("DELETE", "http://localhost:8080/api/v1/payments/uid/unknown", nil)
@@ -373,7 +373,7 @@ func TestDeletePaymentByUidKoNotFound(t *testing.T) {
 
 func TestDeletePaymentByUidKoAlreadyProcessed(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment := expectedPayment("myUid", true)
 
 	mockRepository.On("GetByUid", "myUid").Return(expectedPayment, nil)
@@ -391,7 +391,7 @@ func TestDeletePaymentByUidKoAlreadyProcessed(t *testing.T) {
 
 func TestDeletePaymentByUid(t *testing.T) {
 
-	router, mockRepository := setUp();
+	router, mockRepository := setUp()
 	expectedPayment := expectedPayment("myUid", false)
 
 	mockRepository.On("GetByUid", "myUid").Return(expectedPayment, nil)
@@ -422,7 +422,7 @@ func setUp() (*mux.Router, *paymentRepositoryImplMock) {
 
 }
 
-func expectedPayment(uid string, processed bool) (*model.Payment) {
+func expectedPayment(uid string, processed bool) *model.Payment {
 
 	payment := model.Payment{
 		Uid:           uid,

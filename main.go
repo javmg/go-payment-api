@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gitgub.com/javierjmgits/go-payment-api/base/config"
+	"github.com/javierjmgits/go-payment-api/base/config"
 )
 
 func main() {

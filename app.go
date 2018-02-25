@@ -1,16 +1,16 @@
 package main
 
 import (
-	"gitgub.com/javierjmgits/go-payment-api/base/config"
+	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/javierjmgits/go-payment-api/base/config"
+	"github.com/javierjmgits/go-payment-api/payment/handler"
+	"github.com/javierjmgits/go-payment-api/payment/model"
+	"github.com/javierjmgits/go-payment-api/payment/repository"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
-	"fmt"
 	"log"
 	"net/http"
-	"gitgub.com/javierjmgits/go-payment-api/payment/handler"
-	"gitgub.com/javierjmgits/go-payment-api/payment/model"
-	"gitgub.com/javierjmgits/go-payment-api/payment/repository"
 )
 
 type app struct {
@@ -38,7 +38,7 @@ func (app *app) Start() {
 	dbURL := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=True",
 		app.config.DB.Username,
 		app.config.DB.Password,
-		app.config.DB.Name, )
+		app.config.DB.Name)
 
 	db, err := gorm.Open("mysql", dbURL)
 
